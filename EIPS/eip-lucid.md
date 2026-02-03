@@ -22,41 +22,49 @@ Includers determine the priority order of their lists, and builders are mandated
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) and [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174).
 
 ### Constants and Parameters
-| Name            |               Value                | Description                                                              |     |
-| --------------- | :--------------------------------: | ------------------------------------------------------------------------ | --- |
-| `ToB_gas_limit` |                25%                 | The maximum gas allocated for decrypted transactions at the Top-of-Block |     |
-| `IL_gas_min`    | ToB_gas_limit // IL_COMMITTEE_SIZE | The minimum guaranteed gas per Inclusion List, calculated as             |     |
+| Name            |               Value                | Description                                                              | 
+| --------------- | :--------------------------------: | ------------------------------------------------------------------------ | 
+| `ToB_gas_limit` |                25%                 | The maximum gas allocated for decrypted transactions at the Top-of-Block | 
+| `IL_gas_min`    | ToB_gas_limit // IL_COMMITTEE_SIZE | The minimum guaranteed gas per Inclusion List, calculated as             | 
 
-### Data Structures
-
-
-
-Sealed Transaction Ticket (STTicket) The ticket binds the sender to a decryptor and prepays gas.   
-TODO: This data structure only ever occurs in an Inclusion List? Or could we gossip it?
+### Encryption Data Structures
 
 ```python  
-class STTicket(Container):  
-   from: ExecutionAddress   
-   nonce: uint64   
-   gas_limit: uint64   
-   max_fee_per_gas: uint64   
-   decryptor_address: ExecutionAddress   
-   decryptor_fee: uint64   
-   reveal_commitment: Bytes32   
-   ciphertext_hash: Bytes32   
-   signature: Bytes65     
+class SealedTransaction(Container):
+   ticket: STTicket
+   encrypted_tx: ByteList[MAX_ENCRYPTED_TX_BYTES]
 ```  
-
-Sealed Transaction (ST)  
-TODO: this must be gossiped out, so should likely be a new tx type?
 
 ```python  
-class ST(Container) extends Transaction:  
-    ... fields inheretid from EIP-2718 ...    
-    ToB_fee_per_gas: Gwei    
-    reserved_by: STTicket  
+class STTicket(Container):
+   from: ExecutionAddress
+   nonce: uint64
+   gas_limit: uint64
+   max_fee_per_gas: uint64
+   max_priority_fee_per_gas: uint64
+   max_ranking_fee_per_gas: uint64
+   decryptor_address: ExecutionAddress
+   decryptor_fee: uint64
+   reveal_commitment: Bytes32
+   ciphertext_hash: Bytes32
+   signature: Bytes65        # Signature by `from` over the ticket fields
 ```  
 
+```python
+class RevealedTransaction(Container):
+    plaintext_tx: Transaction  # Type 2 transaction
+    ToB_fee_per_gas: uint64
+```
+
+```python
+class RevealCommitmentPreimage(Container):
+    ticket_from: ExecutionAddress
+    ticket_nonce: uint64
+    plaintext_tx: Transaction
+    ToB_fee_per_gas: uint64
+```
+
+### ePBS data structures
 
 ```python  
 class ABB(Container) extends ExecutionPayloadBid:  
@@ -64,7 +72,7 @@ class ABB(Container) extends ExecutionPayloadBid:
    sealted_transactions: List[STTicket, TODO]  
 ```  
 
-TODO: IL_data is a terrible name,
+### FOCIL data structures
 
 ```python  
 class InclusionList(Container):  
@@ -72,9 +80,20 @@ class InclusionList(Container):
     validator_index: ValidatorIndex    
     inclusion_list_committee_root: Root    
 	transactions: List[Transaction, MAX_TRANSACTIONS_PER_PAYLOAD]
+    sealed_transactions: List[SealedTransaction, TODO: static upper limit]
 	key_adherence: List[ILKeyAdherence, IL_COMMITTEE_SIZE]  
 ```  
 
+```python
+class ILCommitments(Container):
+    IL_root: Bytes32
+    commits: List[STCommitment, MAX_COMMITS_PER_IL]
+```
+
+```python
+class ILKeyAdherence(Container):
+    key_adherence: List[Boolean, MAX_COMMITS_PER_IL]
+```
 
 
 
@@ -122,7 +141,7 @@ Builder Duties (Slot N+1)
 - Overflow Handling: If the aggregate gas_obligation of all ILs exceeds ToB_gas_limit, the builder must include transactions up to the limit. The builder handles overflow by removing the last added transaction(s) until the total fits within `ToB_gas_limit`.
 
 Block Validity (Slot N+1) A block is invalid if any of the following conditions are met:  
-• ST Ticket Construction: The st_tickets list in the payload does not match the set of ST-commitments in the ABB (from Slot N) where the decrypt bit was set to 1.  
+- ST Ticket Construction: The st_tickets list in the payload does not match the set of ST-commitments in the ABB (from Slot N) where the decrypt bit was set to 1.  
 ◦ Ordering: st_tickets must be ordered by scanning the ABB's IL_data by increasing committee_index, then commit_index, then tx_index.  
 • Prepayment Failure: Any ticket in st_tickets fails to be fully charged. The account ticket.from must have sufficient balance to cover ticket.gas_limit * (base_fee + ToB_marginal_ranking_fee) + ticket.decryptor_fee.  
 • Duplicate Decryption: The decrypted_transactions list contains more than one entry referencing the same ticket_index.  
