@@ -178,5 +178,9 @@ Block Validity (Slot N+1) A block is invalid if any of the following conditions 
 
 ### Security Concerns
 
+HPKE is being newly considered in this EIP, will need a broad review.
+
 ### Economic Concerns
+
+Any new refund mechanics should be closely examined for game-ability.
 
