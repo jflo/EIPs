@@ -2,11 +2,12 @@
 eip: TBD  
 title: LUCID - Encrypted Mempools with Unconditional Inclusion Lists  
 description: A mechanism for pre-confirming encrypted transactions via unconditional inclusion lists, executed at the top of the subsequent block.  
-author: discussions-to: https://ethereum-magicians.org/t/frame-transaction/27617  
+author: Anders Elowsson, Justin Florentine, Julian Ma  
+discussions-to: https://ethereum-magicians.org/t/frame-transaction/27617  
 status: Draft  
 type: Standards Track  
 category: Core  
-created: 2026-02-04  
+created: 2026-02-19  
 requires: 7732, 7805, 2718
 ---  
 
